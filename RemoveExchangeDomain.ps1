@@ -89,9 +89,12 @@ $scriptVersion = "1.0"
 
 $myDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$logfile = "$myDir\RemoveExchangeDomain.log"
-
 $start = Get-Date
+
+$dateforlog = $start.ToString("MM-dd-yyyy_hh-mm-ss")
+
+$logfile = "$myDir\RemoveExchangeDomain-" + $dateforlog + ".log"
+
 
 ############################################################################
 # Variables End
@@ -116,14 +119,25 @@ If($answer.ToLower() -ne "y"){
 } 
 
 Else{
+	If(!$Commit){
+		Write-Warning "No changes will be made due to -Commit switch not being specified."
+	}
 
 	Write-Logfile "Removing the domain $domainName from the Exchange Organisation..."
 
-	#First remove the domain from all Email Address Policies
+	# First remove the domain from all Email Address Policies
+    
+    Write-Logfile "Checking email address policies for domain $DomainName"
 
-	Get-EmailAddressPolicy | ForEach-Object { # Looking for domain in each email address policy
+	$Policies = Get-EmailAddressPolicy  
+    
+    ForEach($Policy in $Policies) { # Looking for domain in each email address policy
 
-		$template = (Get-EmailAddressPolicy $_ ).EmailAddressPolicyTemplates;
+        Write-Logfile "Checking Policy $Policy"
+        $PolicyName = $Policy.Identity
+        #Write-Host $PolicyName
+		$template = (Get-EmailAddressPolicy -Identity $PolicyName).EnabledEmailAddressTemplates
+        #Write-Host $template
 		$newTemplate = @()
 
 		ForEach($address in $template){
@@ -135,27 +149,42 @@ Else{
 			}
 
 		} # End of ForEach Address in Template
+        
+        If($template -eq $newTemplate){
 
-		if($Commit){
+            # If templates match there are no changes to be made
 
-			Try{ #Update the Policy with the domain removed from the templates.
-				$error.Clear()
+            WriteLogFile "No changes required to Address Policy $policy"
 
-				Set-EmailAddressPolicy $_ -EmailAddressPolicyTemplates $newTemplate
-			}
-			Catch{
-				Write-Logfile "There was an error updating the email address policy..."
-				Write-Logfile "$error"
-			}
-			Finally{
-				if(!$error){
-					Write-Logfile "Successfully updated Email Address Policy $_"
-				}
-				else{
-					Write-Logfile "There was an error updating $_ "
-				}
-			} # End of Try, Catch, Finally
-		} # End of If Commit
+            }
+
+        Else{
+		    if($Commit){
+
+			    Try{ #Update the Policy with the domain removed from the templates.
+				    $error.Clear()
+                    Write-Logfile "Removing all entries for $domainName in Address Policy $Policy"
+
+				    Set-EmailAddressPolicy $Policy -EmailAddressPolicyTemplates $newTemplate
+                    
+                    # Update the recipients
+                    Write-Logfile "Updating policy recipients..."
+				    Update-EmailAddressPolicy $Policy
+			    }
+			    Catch{
+				    Write-Logfile "There was an error updating the email address policy..."
+				    Write-Logfile "$error"
+			    }
+			    Finally{
+				    if(!$error){
+					    Write-Logfile "Successfully updated Email Address Policy $_"
+				    }
+				    else{
+					    Write-Logfile "There was an error updating $_ "
+				    }
+			    } # End of Try, Catch, Finally
+		    } # End of If Commit
+        }# End of Else (Changes to be made)
 	} # End of Foreach Address Policy
 
 	# Next, update all mailboxes
@@ -233,6 +262,11 @@ Else{
 	}
 	Else{
 		Write-logfile "Accepted domain $domainName not found in Exchange"
+	}
+	if(!$Commit)
+	{
+		Write-Warning "No changes made due to -Commit switch not being specified."
+
 	}
 } # End of Else
 
