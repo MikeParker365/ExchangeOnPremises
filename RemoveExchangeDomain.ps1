@@ -7,7 +7,8 @@ RemoveExchangeDomain.ps1 = Remove Domain from Exchange Organisation - Removes do
 Version 1.0, 11th March 2016
 Revision History
 ---------------------------------------------------------------------
-1.0 	- Initial release
+1.0 	- Initial release.
+1.1     - Added mail users into the scope of the script.
 
 Author/Copyright:    Mike Parker - All rights reserved.
 Email/Blog/Twitter:  mike@mikeparker365.co.uk | www.mikeparker365.co.uk | @MikeParker365
@@ -85,7 +86,7 @@ function Get-FileName($initialDirectory) {
 # Variables Start 
 ############################################################################
 
-$scriptVersion = "1.0"
+$scriptVersion = "1.1"
 
 $myDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -245,9 +246,71 @@ Else{
 		}
 
 	} # End of Forech Mailbox
-	Write-Logfile "$ItemCount records processed"
-	Write-Logfile "$success records processed successfully."
-	Write-Logfile "$failure records errored during processing." 
+	Write-Logfile "$ItemCount Mailboxes processed"
+	Write-Logfile "$success Mailboxes processed successfully."
+	Write-Logfile "$failure Mailboxes errored during processing." 
+
+# Next, update all mail users
+
+	Write-Logfile "Updating individual mailboxes..."
+
+	$Mailboxes = @(Get-MailUser -Filter {(EmailAddressPolicyEnabled -eq $False) -and (EmailAddresses -like '*$DomainName')} -ResultSize Unlimited)
+
+	$itemCount = $mailboxes
+	$itemCount = $itemCount.count
+	$processedCount = 1
+	$success = 0
+	$failure = 0
+
+	Foreach ($Mailbox in $Mailboxes)
+	{
+		$error.clear()
+
+		Write-Progress -Activity "Processing.." -Status "User $processedCount of $itemCount" -PercentComplete ($processedCount / $itemCount * 100)
+
+		try{
+
+			Write-Logfile "******* Processing: $mailbox"
+			$addresses = @($mailbox | Select -Expand EmailAddresses)
+			$newAddresses = $addresses
+
+			foreach ($address in $addresses)
+			{
+				Write-Logfile $address
+				If($address -like "*$DomainName"){
+
+					Write-Logfile "Removing Address $address"
+
+					$newAddresses -= $address
+
+				} # End of matching 
+
+			} # End of address loop
+
+			if($commit)
+			{
+				Set-MailUser -Identity $Mailbox.Alias -EmailAddresses $newAddresses
+
+			} # End of commit
+
+		}
+		catch{
+			Write-Logfile "There was an error processing $Mailbox.Alias. Please review the log."
+
+		}
+		finally{
+			if(!$error){
+				$success++
+			}
+			else{
+				$failure++
+			}
+		}
+
+	} # End of Forech Mailbox
+	Write-Logfile "$ItemCount Mail Users processed"
+	Write-Logfile "$success Mail Users processed successfully."
+	Write-Logfile "$failure Mail Users errored during processing." 
 
 	# Finally remove the accepted domain from Exchange
 
