@@ -143,7 +143,7 @@ Else{
 
 		ForEach($address in $template){
 
-			if ($address -notlike '*$domainName*'){
+			if ($address -notlike "*$domainName"){
 
 				$newtemplate += $address
 
@@ -166,7 +166,7 @@ Else{
 				    $error.Clear()
                     Write-Logfile "Removing all entries for $domainName in Address Policy $Policy"
 
-				    Set-EmailAddressPolicy $Policy -EmailAddressPolicyTemplates $newTemplate
+				    Set-EmailAddressPolicy $Policy -EnabledEmailAddressTemplates $newTemplate
                     
                     # Update the recipients
                     Write-Logfile "Updating policy recipients..."
@@ -192,7 +192,7 @@ Else{
 
 	Write-Logfile "Updating individual mailboxes..."
 
-	$Mailboxes = @(Get-Mailbox -Filter {(EmailAddressPolicyEnabled -eq $False) -and (EmailAddresses -like '*$DomainName')} -ResultSize Unlimited)
+	$Mailboxes = @(Get-Mailbox -ResultSize Unlimited | Where-Object {($_.EmailAddressPolicyEnabled -eq $False) -and ($_.EmailAddresses -like "*$DomainName")} )
 
 	$itemCount = $mailboxes
 	$itemCount = $itemCount.count
@@ -208,8 +208,8 @@ Else{
 
 		try{
 
-			Write-Logfile "******* Processing: $mailbox"
-			$addresses = @($mailbox | Select -Expand EmailAddresses)
+			Write-Logfile "******* Processing: $mailbox *******"
+			$addresses = $mailbox.EmailAddresses
 			$newAddresses = $addresses
 
 			foreach ($address in $addresses)
@@ -234,6 +234,7 @@ Else{
 		}
 		catch{
 			Write-Logfile "There was an error processing $Mailbox.Alias. Please review the log."
+            Write-Logfile $error
 
 		}
 		finally{
@@ -254,7 +255,7 @@ Else{
 
 	Write-Logfile "Updating individual mailboxes..."
 
-	$Mailboxes = @(Get-MailUser -Filter {(EmailAddressPolicyEnabled -eq $False) -and (EmailAddresses -like '*$DomainName')} -ResultSize Unlimited)
+	$Mailboxes = @(Get-MailUser -ResultSize Unlimited | Where-Object {($_.EmailAddressPolicyEnabled -eq $False) -and ($_.EmailAddresses -like "*$DomainName")} )
 
 	$itemCount = $mailboxes
 	$itemCount = $itemCount.count
@@ -270,8 +271,8 @@ Else{
 
 		try{
 
-			Write-Logfile "******* Processing: $mailbox"
-			$addresses = @($mailbox | Select -Expand EmailAddresses)
+			Write-Logfile "******* Processing: $mailbox *******"
+			$addresses = $mailbox.EmailAddresses
 			$newAddresses = $addresses
 
 			foreach ($address in $addresses)
@@ -296,6 +297,7 @@ Else{
 		}
 		catch{
 			Write-Logfile "There was an error processing $Mailbox.Alias. Please review the log."
+            $error
 
 		}
 		finally{
@@ -320,9 +322,25 @@ Else{
 		Write-logfile "Accepted Domain found in Exchange."
 		Write-Logfile "Removing Domain..."
 		If($Commit){
-			Remove-AcceptedDomain $AcceptedDomain.Identity
-		}
-	}
+			try{
+
+			$error.Clear()
+			Remove-AcceptedDomain $AcceptedDomain.Identity -Confirm:$False
+				}
+			catch{
+				Write-Logfile "There was an error removing the domain $AcceptedDomain.Identity"
+				Write-Logfile $error
+				}
+			finally{
+				if(!$error){
+					Write-Logfile "Successfully removed $AcceptedDomain.Identity"
+					}
+				else{
+					Write-Logfile "There was an error removing the domain. Please review the log."
+					}
+				} # End of try catch finally
+		} # End of Commit
+	} # End of handling the Accepted domain if found in Exchange
 	Else{
 		Write-logfile "Accepted domain $domainName not found in Exchange"
 	}
