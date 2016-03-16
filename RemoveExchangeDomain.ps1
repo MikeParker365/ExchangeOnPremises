@@ -139,14 +139,30 @@ Else{
         #Write-Host $PolicyName
 		$template = (Get-EmailAddressPolicy -Identity $PolicyName).EnabledEmailAddressTemplates
         #Write-Host $template
-		$newTemplate = @()
+		$oldList = $template -join ","
+
+		$newTemplate = $template
 
 		ForEach($address in $template){
 
-			if ($address -notlike "*$domainName"){
-
-				$newtemplate += $address
-
+			if ($address -like "*$domainName"){
+				try{
+					$error.clear()
+					Write-Logfile "Removing Address: $address"
+					$newtemplate -= $address
+					}
+				catch{
+					Write-Logfile $error
+					}
+				finally{
+					if(!$error){
+						Write-Logfile "$address removed from list"
+					}
+					else{
+						Write-Logfile "There was an error"
+						Write-Logfile $error
+						}
+					}
 			}
 
 		} # End of ForEach Address in Template
@@ -165,7 +181,15 @@ Else{
 			    Try{ #Update the Policy with the domain removed from the templates.
 				    $error.Clear()
                     Write-Logfile "Removing all entries for $domainName in Address Policy $Policy"
+					$newList = $newTemplate -join ","
 
+					Write-Logfile "Old Domains in Policy $Policy :"
+					Write-Logfile $oldList
+					Write-Logfile ""
+					Write-Logfile "New Domains in Policy $Policy :"
+					Write-Logfile $newList
+
+					Write-Logfile "Updating Policy $Policy"
 				    Set-EmailAddressPolicy $Policy -EnabledEmailAddressTemplates $newTemplate
                     
                     # Update the recipients
