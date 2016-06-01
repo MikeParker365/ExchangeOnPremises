@@ -10,6 +10,8 @@ Revision History
 1.0 	- Initial release.
 1.1     - Added mail users into the scope of the script.
 1.2		- Added support for multiple domain removal at once.
+		- Bug Fixes
+		- Improved logging
 
 Author/Copyright:    Mike Parker - All rights reserved.
 Email/Blog/Twitter:  mike@mikeparker365.co.uk | www.mikeparker365.co.uk | @MikeParker365
@@ -23,6 +25,9 @@ If a domain is manually added as a user's Primary SMTP Address (not via EAP) it 
 
 .PARAMETER DomainName
 The domain name you want to remove from Microsoft Exchange
+
+.PARAMETER DomainNames
+The multiple domain names you want to remove from Microsoft Exchange
 
 .PARAMETER Commit
 Confirms that you want to commit changes live
